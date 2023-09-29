@@ -86,6 +86,7 @@ int main(int argc, char* argv[]) {
 				if (flag[j] != idle) // j = (flag[j] != idle) ? turn : (j + 1) % n; i just understood this easier and made it easier to debugg
 				       j = turn[0];
 				else {
+					// elaborated (j + 1) % n 
 					if (turn[0] + 1 == n) {
                         			j = (turn[0] + 1) % (n + 1);
                 			}
