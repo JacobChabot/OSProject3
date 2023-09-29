@@ -15,9 +15,9 @@ int seconds = 100;
 
 void help() {
 	printf("Help function\n");
+	printf("Standard input: \n\n");
+	printf("./master.out -n <number of processes>(optional) -s <number of seconds>(optional)");
 }
-
-
 
 int main(int argc, char** argv) {
 	
@@ -45,66 +45,111 @@ int main(int argc, char** argv) {
 	}
 
 	int processes[n];
+	enum state {idle, want_in, in_cs};
 
 	// initialize shared memory for turn variable
-	int shm_id = shmget(2271999, sizeof(int), IPC_CREAT | 0666); //return identifier
+	int shm_id = shmget(2271999, sizeof(int) + n*sizeof(enum state), IPC_CREAT | 0666); //return identifier
 	if (shm_id <= 0) {
 		fprintf(stderr, "Share memory get failed\n");
 		exit(1);
 	}
-	int * turn = shmat(shm_id, 0, 0); //attach pointer to shared memory identifier
-	if (turn <= 0) {
-		fprintf(stderr, "Shared memory attach failed\n");
-		exit(1);
+	void * shmem = shmat(shm_id, 0, 0); //attach pointer to shared memory identifier
+	if ((int*) shmem == -1) {
+                perror("Error: ");
+                exit(1);
+        }
+	int * turn = (int *) shmem;
+	enum state * flag = (enum state *) (shmem + sizeof(int)); 
+
+	int i; // initialize all the process flags to idle starting at 1
+	for (i = 1; i < n; i++) {
+		flag[i] = idle;
 	}
 
-	turn[0] = 10;
+	*turn = 0; // set turn to the first process
 
 	time_t start, end, timer; 
 	start = time(NULL);
 
-	int i;
-	for (i = 0; i < n; i++) {
+	for (i = 1; i <= n; i++) {
 		// convert i into a temp char to be able to pass as an argument to slave program
 		char temp[10];
+		char nTemp[10];
 		snprintf(temp, sizeof(temp), "%d", i);
+		snprintf(nTemp, sizeof(nTemp), "%d", n);
 		
 		// begin forking
 		pid_t pid = fork();
 		if (pid == 0) {
 			// if child, execute slave program and exit
-			execl("./slave", "./slave", temp, NULL);
+			execl("./slave.out", "./slave.out", temp, nTemp, NULL);
 			exit(0);
 		}
 		else {
-			processes[i] = pid; //put the pid int he processes array
+			processes[i-1] = pid; //put the pid int he processes array
 		}
-		
-		// calculate the timer, if timer is greater than seconds, loop through all child processes and kill them
+
+		// on last loop, calculate timer until and begin looping
+               // if (i == n) {
+		//	end = time(NULL);
+                //	timer = end - start;
+		//	while (timer < seconds) { // keep looping until timer > seconds, then begin killing processes
+		//		sleep(5);
+		//		end = time(NULL);
+		//		timer = end - start;
+		//		if (timer > seconds) {
+		//			int x;
+                  //      		for (x = 0; x < i; x++) {
+		//				kill(processes[x], SIGKILL);
+                  //      		}
+		//			break;
+                //		}
+		//	}
+                //}
+	}
+
+	// loop through all the child processes and wait for them to finish
+	for (i = 0; i < n; i++) {
+		int status;
+		waitpid(processes[i], &status, 0);
+	}
+
+	end = time(NULL);              	
+	timer = end - start;
+	while (timer < seconds) { // loop until timer > seconds, then begin killing processes
+		sleep(5);                  
 		end = time(NULL);
 		timer = end - start;
 		if (timer > seconds) {
 			int x;
-			for (x = 0; x < i; x++) {
+			for (x = 0; x < i; x++) 
 				kill(processes[x], SIGKILL);
-			}
-			break;			
-		}
-
+			break;
+		}	
 	}
-
-	wait(0); // wait for child processes to finish
-
+	
 	//free memory
 	shmdt(turn);
+	shmdt(flag);
 	shmctl(shm_id, IPC_RMID, NULL);
-
-
 	
-	printf("Child PIDs: ");
-	for (i = 0; i < n; i++){
-		printf("%d ", processes[i]);
-	}
+	// open cstest file
+	FILE * cstest;
+        cstest = fopen("cstest", "a");
+        if (cstest == NULL)
+                perror("Error: ");
+
+        // get time in HH:MM:SS format
+        time_t currentTime;
+        struct tm * timeInfo;
+        char timeString[9];
+        time(&currentTime);
+        timeInfo = localtime(&currentTime);
+        strftime(timeString, sizeof(timeString), "%H:%M:%S", timeInfo);
+	
+        fprintf(cstest, "\nMaster completed at %s\n", timeString); // output timeof completion
+
+        fclose(cstest);
 
 	printf("\nEnd of master.\n");
 
