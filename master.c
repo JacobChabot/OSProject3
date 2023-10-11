@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
+#include <sys/sem.h> // semaphores
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -18,6 +19,8 @@ void help() {
 	printf("Standard input: \n\n");
 	printf("./master.out -n <number of processes>(optional) -s <number of seconds>(optional)");
 }
+
+
 
 int main(int argc, char** argv) {
 	
@@ -45,93 +48,72 @@ int main(int argc, char** argv) {
 	}
 
 	int processes[n];
-	enum state {idle, want_in, in_cs};
+	printf("master program\n");
+	// create semaphore set
+	key_t key = 2271999;
+	// semget(key to create semophore, number of semophores needed, permissions)
+	int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions? 
+	if (sem == -1) {
+		perror("semget");
+		exit(0);
+	} 
 
-	// initialize shared memory for turn variable
-	int shm_id = shmget(2271999, sizeof(int) + n*sizeof(enum state), IPC_CREAT | 0666); //return identifier
-	if (shm_id <= 0) {
-		fprintf(stderr, "Share memory get failed\n");
-		exit(1);
+	// initialize semaphore to 1
+	// 1 = CS is available, 0 = CS is in use
+	struct sembuf initSem = {
+		.sem_num = 0,
+		.sem_op = 1, // set to 1 
+		.sem_flg = 0
+	};
+	if (semop(sem, &initSem, 1) == -1) {
+		perror("semop failed");
+		exit(0);
 	}
-	void * shmem = shmat(shm_id, 0, 0); //attach pointer to shared memory identifier
-	if ((int*) shmem == -1) {
-                perror("Error: ");
-                exit(1);
-        }
-	int * turn = (int *) shmem;
-	enum state * flag = (enum state *) (shmem + sizeof(int)); 
 
-	int i; // initialize all the process flags to idle starting at 1
-	for (i = 1; i < n; i++) {
-		flag[i] = idle;
-	}
+	//semop(semophore ID, pointer to an sembuf array[], number of arrays)
 
-	*turn = 0; // set turn to the first process
+	//semctl(sem ID, semaphore number, command);
+	
 
 	time_t start, end, timer; 
 	start = time(NULL);
-
-	for (i = 1; i <= n; i++) {
+	
+	int i;
+	for (i = 0; i <= 5; i++) {
 		// convert i into a temp char to be able to pass as an argument to slave program
 		char temp[10];
 		char nTemp[10];
 		snprintf(temp, sizeof(temp), "%d", i);
 		snprintf(nTemp, sizeof(nTemp), "%d", n);
-		
-		// begin forking
-		pid_t pid = fork();
-		if (pid == 0) {
-			// if child, execute slave program and exit
-			execl("./slave.out", "./slave.out", temp, nTemp, NULL);
-			exit(0);
-		}
-		else {
-			processes[i-1] = pid; //put the pid int he processes array
-		}
 
-		// on last loop, calculate timer until and begin looping
-               // if (i == n) {
-		//	end = time(NULL);
-                //	timer = end - start;
-		//	while (timer < seconds) { // keep looping until timer > seconds, then begin killing processes
-		//		sleep(5);
-		//		end = time(NULL);
-		//		timer = end - start;
-		//		if (timer > seconds) {
-		//			int x;
-                  //      		for (x = 0; x < i; x++) {
-		//				kill(processes[x], SIGKILL);
-                  //      		}
-		//			break;
-                //		}
-		//	}
-                //}
+		printf("for loop in master\n");
+	
+		// begin forking
+                pid_t pid = fork();
+                if (pid == 0) {
+                        // if child, execute slave program and exit
+                        execl("./slave.out", "./slave.out", temp, nTemp, NULL);
+			exit(0);
+		} 
+		else {
+			processes[i] = pid; //put the pid int he processes array
+		}
+           
+
 	}
+
+	
 
 	// loop through all the child processes and wait for them to finish
-	for (i = 0; i < n; i++) {
-		int status;
-		waitpid(processes[i], &status, 0);
-	}
+        for (i = 0; i < 5; i++) {
+                wait(0);
+        }
+
+	semctl(sem, 0, IPC_RMID);
 
 	end = time(NULL);              	
 	timer = end - start;
-	while (timer < seconds) { // loop until timer > seconds, then begin killing processes
-		sleep(5);                  
-		end = time(NULL);
-		timer = end - start;
-		if (timer > seconds) {
-			int x;
-			for (x = 0; x < i; x++) 
-				kill(processes[x], SIGKILL);
-			break;
-		}	
-	}
 	
-	//free memory
-	shmdt(turn);
-	shmdt(flag);
-	shmctl(shm_id, IPC_RMID, NULL);
 	
 	// open cstest file
 	FILE * cstest;

@@ -3,8 +3,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <time.h>
-
-enum state{idle, want_in, in_cs};
+#include <sys/sem.h> // semaphores
 
 // function to write to log file
 void logFile(int i, char * status) {
@@ -54,20 +53,21 @@ void critical_section(int process) {
 	fclose(cstest);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {	
 	
 	int n = atoi(argv[2]); // number of processes
         const int i = atoi(argv[1]); // own process number
-        int j; // local to each process
-	
-	// initialize shared memory for turn and flags
-        int shm_id = shmget(2271999, sizeof(int) + n*sizeof(enum state), IPC_CREAT | 0666); //return identifier
-        int * turn = shmat(shm_id, 0, 0); //attach pointer to shared memory identifier
-        enum state *flag = shmat(shm_id, 0, 0);
-	if (flag <= 0 || turn <= 0) {
-		fprintf(stderr, "Shared memory attach failed\n");
-		exit(0);
-	}
+	char enterStatus[] = "has entered the critical section at: ";
+	char exitStatus[] = "has exited the critical section at: ";
+
+	// create semaphore set
+        key_t key = 2271999;
+        // semget(key to create semophore, number of semophores needed, permissions)
+        int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions?
+        if (sem == -1) {
+                perror("semget");
+                exit(0);
+        }
 
 	srand(time(0));
 
@@ -76,84 +76,32 @@ int main(int argc, char* argv[]) {
 	int x;
 	for (x = 0; x < 5; x++) { // loop 5 times to enter critical section 5 times
 		number = ((rand() % (3 - 1 + 1)) + 1); // generate a random number between 1 and 3	
+		 
+		struct sembuf semWait = {
+    			.sem_num = 0,
+			.sem_op = -1,
+			.sem_flg = 0
+		};
+		semop(sem, &semWait, 1); // wait for CS to be open
 		
-		// critical section entry
-		do {
-			
-			flag[i] = want_in;
-			j = turn[0];
-			while (j != i) {
-				if (flag[j] != idle) // j = (flag[j] != idle) ? turn : (j + 1) % n; i just understood this easier and made it easier to debugg
-				       j = turn[0];
-				else {
-					// elaborated (j + 1) % n 
-					if (turn[0] + 1 == n) {
-                        			j = (turn[0] + 1) % (n + 1);
-                			}
-                			else {
-                        			j = (turn[0] + 1) % n;
-                        			if (j == 0)
-                                			j = j + 1;
-                			}
-
-				// kill switch
-                        	if (i == n && x == 4) // if last process, and on last loop of for loop, break while loop
-                                	break;
-				}
-				      	       
-			}
-
-			flag[i] = in_cs; //declare intention to enter cs
-
-			for (j = 1; j >= n; j++)
-				if ((j != i) && (flag[j] == in_cs))
-					break;
-		} while ((j >= n) || (turn[0] != i && flag[turn[0]] != idle));
-		
-		turn[0] = i; // set turn to self
-		char enterStatus[] = "has entered the critical section at: ";
-		logFile(i, enterStatus); // call log function to write to log file
 		sleep(number);
-		
-		critical_section(i); // enter critical section
-		
-		char exitStatus[] = "has exited the critical section at: ";
-		logFile(i, exitStatus);
+		//critical section
+		logFile(i, enterStatus); // write to logfile entered CS
+
+		printf("Critical section for slave program: %d\n", getpid());
+				
 		sleep(number);
-		
-		if (turn[0] + 1 == n) {
-			j = (turn[0] + 1) % (n + 1);
-              	}
-                else {
-			j = (turn[0] + 1) % n;
-                        if (j == 0)
-                        	j = j + 1;
-                }
-		
-		while (flag[j] == idle) {
-			if (turn[0] + 1 == n) {
-                        	j = (turn[0] + 1) % (n + 1);
-			}	
-                	else {
-                        	j = (turn[0] + 1) % n;
-				if (j == 0) 
-					j = j + 1;
-			}
-			
-			// kill switch
-			if (i == n && x == 4) // if last process, and on last loop of for loop, break while loop
-				break;	
-		
-		}
-		
-		turn[0] = j;
-		flag[i] = idle;
-	}
+
+		struct sembuf semSignal = {
+    			.sem_num = 0,
+    			.sem_op = 1,
+    			.sem_flg = 0
+		};
+		semop(sem, &semSignal, 1); // signal that CS can now be open
 	
-	//free memory
-        shmdt(turn);
-        shmdt(flag);
-        shmctl(shm_id, IPC_RMID, NULL);
+		logFile(i, exitStatus); // write to log file exited CS
+
+	}
 
 	return 0;
 }
