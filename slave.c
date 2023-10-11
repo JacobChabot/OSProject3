@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
         // semget(key to create semophore, number of semophores needed, permissions)
         int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions?
         if (sem == -1) {
-                perror("semget");
+                perror("semget failed");
                 exit(0);
         }
 
@@ -82,13 +82,17 @@ int main(int argc, char* argv[]) {
 			.sem_op = -1,
 			.sem_flg = 0
 		};
-		semop(sem, &semWait, 1); // wait for CS to be open
+		if (semop(sem, &semWait, 1) == -1) { // wait for CS to be open
+			perror("semop failed");
+			exit(0);
+		}
 		
+		// now in CS
+
 		sleep(number);
-		//critical section
 		logFile(i, enterStatus); // write to logfile entered CS
 
-		printf("Critical section for slave program: %d\n", getpid());
+		critical_section(i); // execute function to write to file while in CS
 				
 		sleep(number);
 
@@ -97,7 +101,10 @@ int main(int argc, char* argv[]) {
     			.sem_op = 1,
     			.sem_flg = 0
 		};
-		semop(sem, &semSignal, 1); // signal that CS can now be open
+		if (semop(sem, &semSignal, 1) == -1) { // signal that the CS can be opened
+                	perror("semop failed");
+                	exit(0);
+        	}
 	
 		logFile(i, exitStatus); // write to log file exited CS
 

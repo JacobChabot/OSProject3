@@ -18,6 +18,8 @@ void help() {
 	printf("Help function\n");
 	printf("Standard input: \n\n");
 	printf("./master.out -n <number of processes>(optional) -s <number of seconds>(optional)");
+
+	exit(0);
 }
 
 
@@ -47,9 +49,11 @@ int main(int argc, char** argv) {
 			}
 	}
 
+	// processes array in order to terminate processes if needed
 	int processes[n];
-	printf("master program\n");
+	
 	// create semaphore set
+	// use ftok here
 	key_t key = 2271999;
 	// semget(key to create semophore, number of semophores needed, permissions)
 	int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions? 
@@ -70,24 +74,18 @@ int main(int argc, char** argv) {
 		exit(0);
 	}
 
-	//semop(semophore ID, pointer to an sembuf array[], number of arrays)
-
-	//semctl(sem ID, semaphore number, command);
-	
 
 	time_t start, end, timer; 
 	start = time(NULL);
 	
 	int i;
-	for (i = 0; i <= 5; i++) {
-		// convert i into a temp char to be able to pass as an argument to slave program
+	for (i = 0; i < n; i++) {
+		// convert i and n into temp chars to be able to pass as an argument to slave program
 		char temp[10];
 		char nTemp[10];
 		snprintf(temp, sizeof(temp), "%d", i);
 		snprintf(nTemp, sizeof(nTemp), "%d", n);
 
-		printf("for loop in master\n");
-	
 		// begin forking
                 pid_t pid = fork();
                 if (pid == 0) {
@@ -96,25 +94,31 @@ int main(int argc, char** argv) {
 			exit(0);
 		} 
 		else {
-			processes[i] = pid; //put the pid int he processes array
+			processes[i] = pid; //put the pid in the processes array
 		}
-           
-
 	}
 
-	
-
 	// loop through all the child processes and wait for them to finish
-        for (i = 0; i < 5; i++) {
-                wait(0);
+        for (i = 0; i < n; i++) {
+		if (wait(0)) {
+			// after child finishes, check if timer has exceded the max amount and terminate processes
+			end = time(NULL);
+			timer = end - start;
+			if (timer > seconds) {
+				printf("kill processes\n");
+				int x;
+				for (x = 0; x < i; x++) 
+					kill(processes[x], SIGKILL);
+				break;
+			}
+		}
         }
 
+	//delete semaphore 
 	semctl(sem, 0, IPC_RMID);
+	
+	sleep(2);
 
-	end = time(NULL);              	
-	timer = end - start;
-	
-	
 	// open cstest file
 	FILE * cstest;
         cstest = fopen("cstest", "a");
