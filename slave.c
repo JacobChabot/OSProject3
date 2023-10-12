@@ -15,7 +15,7 @@ void logFile(int i, char * status) {
 	// open file
 	file = fopen(fileName, "a");
 	if (file == NULL)
-		perror("Error: ");
+		perror("logfile");
 
 	// get time in HH:MM:SS fromat
         time_t currentTime;
@@ -38,7 +38,7 @@ void critical_section(int process) {
 	FILE * cstest;
 	cstest = fopen("cstest", "a");
 	if (cstest == NULL)
-		perror("Error: ");
+		perror("cstest file");
 
 	// get time in HH:MM:SS format
 	time_t currentTime;
@@ -61,9 +61,8 @@ int main(int argc, char* argv[]) {
 	char exitStatus[] = "has exited the critical section at: ";
 
 	// create semaphore set
-        key_t key = 2271999;
-        // semget(key to create semophore, number of semophores needed, permissions)
-        int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions?
+        key_t key = ftok("./master.c", 0); //generate key using ftok
+        int sem = semget(key, 1, 0600 | IPC_CREAT); // generate semaphore and check for errors
         if (sem == -1) {
                 perror("semget failed");
                 exit(0);

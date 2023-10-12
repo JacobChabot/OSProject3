@@ -53,10 +53,8 @@ int main(int argc, char** argv) {
 	int processes[n];
 	
 	// create semaphore set
-	// use ftok here
-	key_t key = 2271999;
-	// semget(key to create semophore, number of semophores needed, permissions)
-	int sem = semget(key, 1, 0600 | IPC_CREAT); // permissions? 
+	key_t key = ftok("./master.c", 0); // create key using ftok
+	int sem = semget(key, 1, 0600 | IPC_CREAT); // generate semaphore and check for errors 
 	if (sem == -1) {
 		perror("semget");
 		exit(0);
