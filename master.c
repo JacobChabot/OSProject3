@@ -24,7 +24,7 @@ void help() {
 
 // control c signal handler function
 void catchctrlc (int signo) {
-	char handmsg[] = "^C Received\n";
+	char handmsg[] = "^C Received\n"; //output
 	int msglen = sizeof(handmsg);
 	write(STDERR_FILENO, handmsg, msglen);
 }
@@ -37,8 +37,6 @@ int main(int argc, char** argv) {
 	act.sa_flags = 0;
 	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1))
 		perror("Failed to set SIGINT to handle CTRL C");
-
-
 
 	// first check if n was provided
 	int i;
@@ -96,7 +94,6 @@ int main(int argc, char** argv) {
 		perror("semop failed");
 		exit(0);
 	}
-
 
 	time_t start, end, timer; 
 	start = time(NULL);
