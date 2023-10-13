@@ -17,15 +17,40 @@ int seconds = 100;
 void help() {
 	printf("Help function\n");
 	printf("Standard input: \n\n");
-	printf("./master.out -n <number of processes>(optional) -s <number of seconds>(optional)");
+	printf("./master.out -n <number of processes>(required) -s <number of seconds>(optional)");
 
 	exit(0);
 }
 
-
+// control c signal handler function
+void catchctrlc (int signo) {
+	char handmsg[] = "^C Received\n";
+	int msglen = sizeof(handmsg);
+	write(STDERR_FILENO, handmsg, msglen);
+}
 
 int main(int argc, char** argv) {
 	
+	// set up signal handling
+	struct sigaction act;
+	act.sa_handler = catchctrlc;
+	act.sa_flags = 0;
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1))
+		perror("Failed to set SIGINT to handle CTRL C");
+
+
+
+	// first check if n was provided
+	int i;
+	for (i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-n") == 0)
+			break;
+	}
+	if ( i == argc) {
+		fprintf(stderr, "Number of processes is a required argument\n\n");
+		exit(0); // terminate if n was not provided
+	}
+
 	// case and switch to handle command line arguments
 	char ch;
 	while ((ch = getopt(argc, argv, "hn:t:")) != -1) {
@@ -39,8 +64,8 @@ int main(int argc, char** argv) {
 			case 'n':					//i couldnt figure out to only accept n with no option
 				sscanf(optarg, "%d", &n);
 				if ( n > 20) {
-					fprintf(stderr, "\nMax limit of n reached.\n");
-					exit(0);
+					fprintf(stderr, "Max number of processes allowed\n");
+					n = 20; // changed from exitting to setting n back to 20 after reviewing Alina's comments from project 2 
 				}
 				continue;
 			default:
@@ -76,7 +101,6 @@ int main(int argc, char** argv) {
 	time_t start, end, timer; 
 	start = time(NULL);
 	
-	int i;
 	for (i = 0; i < n; i++) {
 		// convert i and n into temp chars to be able to pass as an argument to slave program
 		char temp[10];
@@ -114,8 +138,6 @@ int main(int argc, char** argv) {
 
 	//delete semaphore 
 	semctl(sem, 0, IPC_RMID);
-	
-	sleep(2);
 
 	// open cstest file
 	FILE * cstest;
@@ -131,7 +153,7 @@ int main(int argc, char** argv) {
         timeInfo = localtime(&currentTime);
         strftime(timeString, sizeof(timeString), "%H:%M:%S", timeInfo);
 	
-        fprintf(cstest, "\nMaster completed at %s\n", timeString); // output timeof completion
+        fprintf(cstest, "\nMaster completed at %s\n", timeString); // output time of completion
 
         fclose(cstest);
 
