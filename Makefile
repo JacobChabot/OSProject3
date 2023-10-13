@@ -1,12 +1,15 @@
-all: master slave
+CC = gcc
+CFLAGS = -o
 
-master: master.c
-	gcc -o master.out master.c
+SRCS = master.c slave.c
+EXES = $(SRCS:.c=.out)
+.SUFFIXES: .c .out
 
-slave: slave.c
-	gcc -o slave.out slave.c
+.c.out:
+	$(CC) $(CFLAGS) $@ $<
+
+all: $(EXES)
 
 clean:
-	rm -f *.o master.out slave.out
-	
+	rm -f $(EXES) 
 
