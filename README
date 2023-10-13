@@ -1,28 +1,23 @@
-Operating System Project 2 Jacob Chabot
+Jacob Chabot Project 3
+
+Major differences between Project 2:
+
+*semaphores
+*made n a required argument, master should terminate if n is not provided per Alina
+*program terminates after -h
+*added a error message if user input n > 20 and sets n back to the default of 20
+*fixed issue with warnings from undeclared sleep function (forgot to add the library)
+*added signal handling for ^C
 
 Issues/Bugs:
 
-The project document said we are supposed to execute master by: master -t ss n where ss is how long the program can take in seconds and n is the number of processes. 
-I couldn't figure out how to accept n as its own argument if you include -t. You will need to execute like below:
-./master.out -t <seconds> -n <#processes> where t and n are both optional (defaults are coded in).
-
-How I have the shared memory set up the turn[0] is the turn variable all the following positions in memory are for the flags. This means flag[0] can never be a thing or that will mess with the turn variable.
-This also means since j is used to pick flags in memory, (flag[j] for example) j can never be 0. You will notice in the code a lot of the simple j = (n + 1) % n are elaborated to compensate for this bug. 
-
-In my testing, sometimes (not all the time) all the last child process will never terminate. It will write to the cstest file fine but will somehow loop back. For example: 
-if n = 4, process 4 will write to cstest 4 times as it should, but will somehow loop back and be stuck in one of the while loops. To compensate for this I added various kill switches that will break the loop 
-if it is the last process and on the last loop of the for loop. 
-
-I would receive a warning on line 57 when comparing shmem to an int. It should compile fine this was how Prof Bhatia instructed.
-
-
+Whenever you choose a larger n and the timer exceeds the given amount, the master program will start killing the children programs as asked, but sometimes will result in semget errors. In my testing the 
+program doesn't terminate but the error messages show on the console. 
 
 Git repo can be found at: 
-https://github.com/JacobChabot/OSProject2
+https://github.com/JacobChabot/OSProject3
 
+Notes:
 
-
-A few ending notes:
-
-*I know it wasnt required but I added printf statements in the critical section so the user knows something is going on. Also helped with debugging.
-*The project document said to add results, so I'm adding an example cstest file in with my submission. 
+*Kept the printf statements whenever a process entered critical section, this helped to make sure the programs were executing correctly.
+*Added a cstest file with n = 10
